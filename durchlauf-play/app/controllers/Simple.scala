@@ -6,7 +6,7 @@ import play.api.libs.concurrent.Execution.Implicits._
 
 object Simple extends Controller {
 
-  val baseUrl = "http://localhost:10389"
+  val baseUrl = "http://localhost:10390"
 
   def getDigest(size: Long) = Action {
     Async {

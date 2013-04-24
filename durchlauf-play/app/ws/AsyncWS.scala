@@ -35,7 +35,7 @@ object AsyncWS {
   }
 
   def getStream(url: String)(consumer: ResponseHeaders => Future[Iteratee[Array[Byte], Unit]])(implicit executor: ExecutionContext): Future[Unit] = {
-    execute(new HttpGet(url), ConsumerReceiveAdapter(consumer))
+    execute(new HttpGet(url), ConsumerReceiveAdapter2(consumer))
   }
 
   private def execute[T](request: HttpUriRequest, receiveAdapter: ReceiveAdapter[T]): Future[T] = {

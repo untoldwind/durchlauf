@@ -7,7 +7,7 @@ import play.api.libs.iteratee.{Iteratee, Done}
 import play.api.libs.concurrent.Execution.Implicits._
 
 object Streaming extends Controller {
-  val baseUrl = "http://localhost:10389"
+  val baseUrl = "http://localhost:10390"
 
   def getDigest(size: Long) = Action {
     val resultPromise = Promise[Result]()
@@ -17,6 +17,7 @@ object Streaming extends Controller {
       // e.g. we do not accept anything but a 200
         if (responseHeaders.status != 200) {
           // Send bad request to client
+          println(">>>> 3 " + resultPromise.isCompleted)
           resultPromise.success(BadRequest("Server responded with " + responseHeaders.status))
           // Do not accept any data from webservice (i.e. abort)
           Future.successful(Done[Array[Byte], Unit](Unit))

@@ -5,16 +5,18 @@ import play.api.libs.iteratee.{Step, Input, Iteratee}
 import org.apache.http.nio.client.methods.AsyncByteConsumer
 import java.util.concurrent.atomic.AtomicInteger
 import scala.concurrent.stm.Ref
-import org.apache.http.nio.IOControl
+import org.apache.http.nio.{ContentDecoder, IOControl}
 import org.apache.http.concurrent.FutureCallback
-import org.apache.http.HttpResponse
+import org.apache.http.{HttpEntity, HttpResponse}
 import java.nio.ByteBuffer
 import org.apache.http.protocol.HttpContext
 import scala.util.{Failure, Success}
 import play.api.libs.ws.ResponseHeaders
+import org.apache.http.nio.protocol.{AbstractAsyncResponseConsumer, HttpAsyncResponseConsumer}
+import org.apache.http.entity.ContentType
 
-case class ConsumerReceiveAdapter(consumer: ResponseHeaders => Future[Iteratee[Array[Byte], Unit]])
-                                 (implicit executor: ExecutionContext) extends ReceiveAdapter[Unit] {
+case class ConsumerReceiveAdapter1(consumer: ResponseHeaders => Future[Iteratee[Array[Byte], Unit]])
+                                  (implicit executor: ExecutionContext) extends ReceiveAdapter[Unit] {
   private val queueCount = new AtomicInteger(0)
   private val targetPromise = Promise[Iteratee[Array[Byte], Unit]]()
 
@@ -36,17 +38,20 @@ case class ConsumerReceiveAdapter(consumer: ResponseHeaders => Future[Iteratee[A
     }
 
     def failed(ex: Exception) {
+      println(">>> A " + ex)
       push(Input.EOF)
       lastPush.single.swap(Future.successful(None))
       resultPromise.failure(ex)
     }
 
     def cancelled() {
+      println(">>> D")
       failed(new RuntimeException("Canceled"))
     }
   }
 
-  val responseConsumer = new AsyncByteConsumer[Unit] {
+  val responseConsumer = new AbstractAsyncResponseConsumer[Unit] {
+    private var bbuf: ByteBuffer = null
 
     override def onResponseReceived(response: HttpResponse) {
       val headers = response.getAllHeaders.map(_.getName).toSet.map {
@@ -57,11 +62,20 @@ case class ConsumerReceiveAdapter(consumer: ResponseHeaders => Future[Iteratee[A
       targetPromise.success(Iteratee.flatten(target))
     }
 
-    override def onByteReceived(buf: ByteBuffer, ioctrl: IOControl) {
+    override def onEntityEnclosed(entity: HttpEntity, contentType: ContentType) {
+      bbuf = ByteBuffer.allocate(8 * 1024)
+    }
+
+    override def onContentReceived(decoder: ContentDecoder, ioctrl: IOControl) {
+      val bytesRead = decoder.read(bbuf)
+      if (bytesRead <= 0)
+        return
+      bbuf.flip()
+
       lastIOControl.single.set(Some(ioctrl))
-      val bodyPart = new Array[Byte](buf.remaining())
-      buf.get(bodyPart)
-      buf.clear()
+      val bodyPart = new Array[Byte](bbuf.remaining())
+      bbuf.get(bodyPart)
+      bbuf.clear()
       push(Input.El(bodyPart))
     }
 
@@ -70,6 +84,9 @@ case class ConsumerReceiveAdapter(consumer: ResponseHeaders => Future[Iteratee[A
       lastPush.single.swap(Future.successful(None))
     }
 
+    override def releaseResources() {
+      bbuf = null
+    }
   }
 
   private def push(chunk: Input[Array[Byte]]) {

@@ -3,7 +3,7 @@ package de.leanovate.durchlauf.target;
 public class Main {
     public static void main(String[] args) {
         try {
-            NastyHttpServer.start();
+            SampleHttpServer.start();
             while(true) {
                 Thread.sleep(1000);
             }
