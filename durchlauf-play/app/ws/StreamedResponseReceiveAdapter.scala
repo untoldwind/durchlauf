@@ -1,62 +1,33 @@
 package ws
 
-import scala.concurrent.{Promise, ExecutionContext, Future}
+import scala.concurrent.{Await, Promise, ExecutionContext, Future}
 import play.api.libs.iteratee._
 import org.apache.http.nio.{ContentDecoder, IOControl}
 import org.apache.http.concurrent.FutureCallback
 import org.apache.http.nio.client.methods.AsyncByteConsumer
 import org.apache.http.{HttpEntity, HttpResponse}
 import java.nio.ByteBuffer
-import org.apache.http.protocol.HttpContext
+import org.apache.http.protocol.{HTTP, HttpContext}
 import scala.Some
 import play.api.libs.ws.ResponseHeaders
 import org.apache.http.nio.protocol.AbstractAsyncResponseConsumer
 import org.apache.http.entity.ContentType
 import scala.concurrent.stm.Ref
+import scala.util.{Failure, Success}
 
-case class ConsumerReceiveAdapter(consumer: ResponseHeaders => Future[Iteratee[Array[Byte], Unit]])
-                                  (implicit executor: ExecutionContext) extends ReceiveAdapter[Unit] {
-  private val targetPromise = Promise[Iteratee[Array[Byte], Unit]]()
-
+case class StreamedResponseReceiveAdapter()(implicit executor: ExecutionContext) extends ReceiveAdapter[StreamedResponse] {
   private val bufferQueue = BufferQueue()
 
-  targetPromise.future.map {
-    iterator =>
-      bufferQueue.headFuture.map(feed(iterator, _))
-  }
-
-  def feed(iterator: Iteratee[Array[Byte], Unit], item: BufferQueue.QueueItem) {
-        item match {
-          case chunk: BufferQueue.Chunk =>
-            iterator.fold {
-              case Step.Cont(k) => Future {
-                bufferQueue.dropBytes(chunk.length)
-                k(Input.El(chunk.data.drop(chunk.offset)))
-              }
-              case _ =>  Future.successful(iterator)
-            }.map {
-              next =>
-                bufferQueue.headFuture.map(feed(next, _))
-            }
-          case BufferQueue.EOF =>
-            iterator.fold {
-              case Step.Cont(k) => Future(k(Input.EOF))
-              case _ =>  Future.successful(iterator)
-            }
-        }
-  }
-
-  val resultPromise = Promise[Unit]()
+  val resultPromise = Promise[StreamedResponse]()
 
   def resultFuture = resultPromise.future
 
-  val futureCallback = new FutureCallback[Unit] {
-    def completed(result: Unit) {
-      resultPromise.success(result)
+  val futureCallback = new FutureCallback[StreamedResponse] {
+    def completed(result: StreamedResponse) {
     }
 
     def failed(ex: Exception) {
-      resultPromise.failure(ex)
+      resultPromise.tryFailure(ex)
     }
 
     def cancelled() {
@@ -64,7 +35,7 @@ case class ConsumerReceiveAdapter(consumer: ResponseHeaders => Future[Iteratee[A
     }
   }
 
-  val responseConsumer = new AbstractAsyncResponseConsumer[Unit] {
+  val responseConsumer = new AbstractAsyncResponseConsumer[StreamedResponse] {
 
     private val buffer = ByteBuffer.allocate(8 * 1024)
 
@@ -73,8 +44,16 @@ case class ConsumerReceiveAdapter(consumer: ResponseHeaders => Future[Iteratee[A
         name: String =>
           name -> response.getHeaders(name).map(_.getValue).toSeq
       }.toMap
-      val target = consumer(ResponseHeaders(response.getStatusLine.getStatusCode, headers))
-      targetPromise.completeWith(target)
+      val contentType = if (response.getEntity != null)
+        ContentType.getOrDefault(response.getEntity)
+      else
+        ContentType.DEFAULT_TEXT
+      val charset = if (contentType.getCharset != null)
+        contentType.getCharset
+      else
+        HTTP.DEF_CONTENT_CHARSET
+      resultPromise.success(StreamedResponse(ResponseHeaders(response.getStatusLine.getStatusCode, headers),
+        contentType.getMimeType, charset, bufferQueue.outputEnumerator))
     }
 
     override def onEntityEnclosed(entity: HttpEntity, contentType: ContentType) {
@@ -99,8 +78,12 @@ case class ConsumerReceiveAdapter(consumer: ResponseHeaders => Future[Iteratee[A
       }
     }
 
-    override def buildResult(context: HttpContext) {
+    override def buildResult(context: HttpContext): StreamedResponse = {
       bufferQueue.enqueueEOF()
+      resultFuture.value.map {
+        case Success(result) => result
+        case Failure(e) => throw e
+      }.getOrElse(throw new RuntimeException("No response header received"))
     }
 
     override def releaseResources() {

@@ -9,8 +9,6 @@ import org.apache.http.client.methods.{HttpGet, HttpUriRequest}
 import scala.concurrent.{ExecutionContext, Future}
 import org.apache.http.nio.client.methods.HttpAsyncMethods
 import scala.concurrent.stm.Ref
-import play.api.libs.ws.ResponseHeaders
-import play.api.libs.iteratee.Iteratee
 
 object AsyncWS {
   private val httpClientHolder = Ref(Option.empty[HttpAsyncClient])
@@ -28,12 +26,12 @@ object AsyncWS {
     }
   }
 
-  def get(url: String): Future[FullResponse] = {
-    execute(new HttpGet(url), FullResponseReceiveAdapter())
+  def get(url: String): Future[CompletedResponse] = {
+    execute(new HttpGet(url), CompletedResponseReceiveAdapter())
   }
 
-  def getStream(url: String)(consumer: ResponseHeaders => Future[Iteratee[Array[Byte], Unit]])(implicit executor: ExecutionContext): Future[Unit] = {
-    execute(new HttpGet(url), ConsumerReceiveAdapter(consumer))
+  def getStream(url: String)(implicit executor: ExecutionContext): Future[StreamedResponse] = {
+    execute(new HttpGet(url), StreamedResponseReceiveAdapter())
   }
 
   private def execute[T](request: HttpUriRequest, receiveAdapter: ReceiveAdapter[T]): Future[T] = {

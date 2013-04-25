@@ -12,18 +12,18 @@ import org.apache.http.concurrent.FutureCallback
 import java.io.ByteArrayOutputStream
 import org.apache.http.entity.ContentType
 
-case class FullResponseReceiveAdapter() extends ReceiveAdapter[FullResponse] {
+case class CompletedResponseReceiveAdapter() extends ReceiveAdapter[CompletedResponse] {
 
   private val body = new ByteArrayOutputStream()
 
   private val responseRef = Ref(Option.empty[HttpResponse])
 
-  private val resultPromise = Promise[FullResponse]()
+  private val resultPromise = Promise[CompletedResponse]()
 
   def resultFuture = resultPromise.future
 
-  val futureCallback = new FutureCallback[FullResponse] {
-    def completed(result: FullResponse) {
+  val futureCallback = new FutureCallback[CompletedResponse] {
+    def completed(result: CompletedResponse) {
       resultPromise.success(result)
     }
 
@@ -36,7 +36,7 @@ case class FullResponseReceiveAdapter() extends ReceiveAdapter[FullResponse] {
     }
   }
 
-  val responseConsumer = new AsyncByteConsumer[FullResponse] {
+  val responseConsumer = new AsyncByteConsumer[CompletedResponse] {
 
     override def onByteReceived(buffer: ByteBuffer, ioctrl: IOControl) {
       val bodyPart = new Array[Byte](buffer.remaining())
@@ -50,7 +50,7 @@ case class FullResponseReceiveAdapter() extends ReceiveAdapter[FullResponse] {
       responseRef.single.set(Some(response))
     }
 
-    override def buildResult(context: HttpContext): FullResponse = {
+    override def buildResult(context: HttpContext): CompletedResponse = {
       responseRef.single.get.map {
         response: HttpResponse =>
           val headers = response.getAllHeaders.map(_.getName).toSet.map {
@@ -65,7 +65,7 @@ case class FullResponseReceiveAdapter() extends ReceiveAdapter[FullResponse] {
             contentType.getCharset
           else
             HTTP.DEF_CONTENT_CHARSET
-          FullResponse(ResponseHeaders(response.getStatusLine.getStatusCode, headers),
+          CompletedResponse(ResponseHeaders(response.getStatusLine.getStatusCode, headers),
             contentType.getMimeType, charset, body.toByteArray)
       }.getOrElse {
         throw new RuntimeException("No http response received")

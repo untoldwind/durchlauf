@@ -4,8 +4,10 @@ import scala.concurrent.{ExecutionContext, Future, Promise}
 import scala.annotation.tailrec
 import scala.concurrent.stm.Ref
 import scala.collection.immutable.Queue
+import play.api.libs.iteratee.{Enumerator, Input, Step, Iteratee}
+import scala.util.{Failure, Success}
 
-case class BufferQueue(threshold: Int = 128 * 1024)(implicit executor: ExecutionContext) {
+case class BufferQueue(threshold: Int = 64 * 1024)(implicit executor: ExecutionContext) {
 
   import BufferQueue._
 
@@ -84,6 +86,41 @@ case class BufferQueue(threshold: Int = 128 * 1024)(implicit executor: Execution
 
   def inputAvailable: Future[Unit] = {
     queueState.single.transformAndGet(_.markWaitingForInput()).waitingForInput.map(_.future).getOrElse(Future.successful())
+  }
+
+  def outputEnumerator = new Enumerator[Array[Byte]] {
+    def apply[A](iterator: Iteratee[Array[Byte], A]): Future[Iteratee[Array[Byte], A]] = {
+      val resultPromise = Promise[Iteratee[Array[Byte], A]]()
+
+      def step(current: Iteratee[Array[Byte], A]) {
+        headFuture.onComplete {
+          case Success(chunk: BufferQueue.Chunk) =>
+            current.fold {
+              case Step.Cont(k) => Future {
+                dropBytes(chunk.length)
+                k(Input.El(chunk.data.drop(chunk.offset)))
+              }
+              case _ => Future.successful(current)
+            }.onComplete {
+              case Success(next) =>
+                step(next)
+              case Failure(e) =>
+                resultPromise.failure(e)
+            }
+          case Success(BufferQueue.EOF) =>
+            current.fold {
+              case Step.Cont(k) => Future(k(Input.EOF))
+              case _ => Future.successful(current)
+            }.onComplete(resultPromise.complete)
+          case Failure(e) =>
+            resultPromise.failure(e)
+        }
+      }
+
+      step(iterator)
+
+      resultPromise.future
+    }
   }
 }
 
