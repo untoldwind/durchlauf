@@ -6,10 +6,8 @@ import org.apache.http.nio.client.HttpAsyncClient
 import org.apache.http.impl.nio.conn.{AsyncSchemeRegistryFactory, PoolingClientAsyncConnectionManager}
 import org.apache.http.impl.nio.reactor.{IOReactorConfig, DefaultConnectingIOReactor}
 import org.apache.http.client.methods.{HttpGet, HttpUriRequest}
-import org.apache.http.nio.protocol.HttpAsyncResponseConsumer
-import scala.concurrent.{ExecutionContext, Future, Promise}
+import scala.concurrent.{ExecutionContext, Future}
 import org.apache.http.nio.client.methods.HttpAsyncMethods
-import org.apache.http.concurrent.FutureCallback
 import scala.concurrent.stm.Ref
 import play.api.libs.ws.ResponseHeaders
 import play.api.libs.iteratee.Iteratee
@@ -30,12 +28,12 @@ object AsyncWS {
     }
   }
 
-  def get(url: String): Future[Response] = {
-    execute(new HttpGet(url), ResponseReceiveAdapter())
+  def get(url: String): Future[FullResponse] = {
+    execute(new HttpGet(url), FullResponseReceiveAdapter())
   }
 
   def getStream(url: String)(consumer: ResponseHeaders => Future[Iteratee[Array[Byte], Unit]])(implicit executor: ExecutionContext): Future[Unit] = {
-    execute(new HttpGet(url), ConsumerReceiveAdapter2(consumer))
+    execute(new HttpGet(url), ConsumerReceiveAdapter(consumer))
   }
 
   private def execute[T](request: HttpUriRequest, receiveAdapter: ReceiveAdapter[T]): Future[T] = {

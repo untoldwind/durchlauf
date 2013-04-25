@@ -1,4 +1,4 @@
-package ws
+package ws.alt
 
 import scala.concurrent.{Promise, ExecutionContext, Future}
 import play.api.libs.iteratee.{Step, Input, Iteratee}
@@ -14,8 +14,9 @@ import scala.util.{Failure, Success}
 import play.api.libs.ws.ResponseHeaders
 import org.apache.http.nio.protocol.{AbstractAsyncResponseConsumer, HttpAsyncResponseConsumer}
 import org.apache.http.entity.ContentType
+import ws.ReceiveAdapter
 
-case class ConsumerReceiveAdapter1(consumer: ResponseHeaders => Future[Iteratee[Array[Byte], Unit]])
+case class ConsumerReceiveAdapter(consumer: ResponseHeaders => Future[Iteratee[Array[Byte], Unit]])
                                   (implicit executor: ExecutionContext) extends ReceiveAdapter[Unit] {
   private val queueCount = new AtomicInteger(0)
   private val targetPromise = Promise[Iteratee[Array[Byte], Unit]]()

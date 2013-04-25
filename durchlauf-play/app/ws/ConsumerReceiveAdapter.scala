@@ -14,7 +14,7 @@ import org.apache.http.nio.protocol.AbstractAsyncResponseConsumer
 import org.apache.http.entity.ContentType
 import scala.concurrent.stm.Ref
 
-case class ConsumerReceiveAdapter2(consumer: ResponseHeaders => Future[Iteratee[Array[Byte], Unit]])
+case class ConsumerReceiveAdapter(consumer: ResponseHeaders => Future[Iteratee[Array[Byte], Unit]])
                                   (implicit executor: ExecutionContext) extends ReceiveAdapter[Unit] {
   private val targetPromise = Promise[Iteratee[Array[Byte], Unit]]()
 
