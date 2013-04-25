@@ -1,4 +1,4 @@
-package ws
+package ws.alt
 
 import scala.concurrent.{Promise, ExecutionContext}
 import org.apache.http.entity.AbstractHttpEntity

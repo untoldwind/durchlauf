@@ -3,30 +3,24 @@ package ws
 import scala.concurrent.{Promise, ExecutionContext}
 import play.api.libs.iteratee.{Done, Iteratee}
 import scala.concurrent.stm.Ref
-import org.apache.http.entity.AbstractHttpEntity
+import org.apache.http.entity.{ContentType, AbstractHttpEntity}
 import org.apache.http.nio.entity.HttpAsyncContentProducer
 import org.apache.http.nio.{IOControl, ContentEncoder}
 import java.io.OutputStream
 import scala.util.{Success, Failure}
 import java.nio.ByteBuffer
 import scala.annotation.tailrec
+import org.apache.http.concurrent.FutureCallback
 
-case class ProducerSendAdapter[T]()(implicit executor: ExecutionContext) {
-
-  val resultPromise = Promise[T]()
+case class StreamedSendAdapter[T](contentType: ContentType)(implicit executor: ExecutionContext) {
 
   val bufferQueue = BufferQueue()
 
-  val producer: Iteratee[Array[Byte], T] = Iteratee.foldM[Array[Byte], Unit]() {
-    (_, chunk) =>
-      bufferQueue.enqueueChunk(chunk)
-  }.flatMap {
-    _ =>
-      bufferQueue.enqueueEOF()
-      Iteratee.flatten(resultPromise.future.map(Done(_)))
-  }
+  val iteratee = bufferQueue.inputIteratee
 
   val httpEntity = new AbstractHttpEntity with HttpAsyncContentProducer {
+    setContentType(contentType)
+
     override def produceContent(encoder: ContentEncoder, ioctrl: IOControl) {
       bufferQueue.headOption match {
         case Some(BufferQueue.Chunk(data, offset)) =>

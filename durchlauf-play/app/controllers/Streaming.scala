@@ -1,10 +1,11 @@
 package controllers
 
-import play.api.mvc.{Result, Action, Controller}
+import play.api.mvc.{EssentialAction, Result, Action, Controller}
 import ws.AsyncWS
 import scala.concurrent.{Future, Promise}
 import play.api.libs.iteratee.{Iteratee, Done}
 import play.api.libs.concurrent.Execution.Implicits._
+import java.nio.charset.Charset
 
 object Streaming extends Controller {
   val baseUrl = "http://localhost:10390"
@@ -22,5 +23,17 @@ object Streaming extends Controller {
           }
       }
     }
+  }
+
+  def postDigest = EssentialAction {
+    requestHeader =>
+      AsyncWS.postStreamUp(baseUrl + "/digest", requestHeader.contentType.getOrElse("text/plain"), requestHeader.charset.map(Charset.forName(_))).map {
+        response =>
+          if (response.headers.status != 200) {
+            BadRequest("Server responded with " + response.headers.status)
+          } else {
+            Ok(response.body)
+          }
+      }
   }
 }

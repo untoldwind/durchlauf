@@ -4,8 +4,10 @@ import scala.concurrent.{ExecutionContext, Future, Promise}
 import scala.annotation.tailrec
 import scala.concurrent.stm.Ref
 import scala.collection.immutable.Queue
-import play.api.libs.iteratee.{Enumerator, Input, Step, Iteratee}
-import scala.util.{Failure, Success}
+import play.api.libs.iteratee._
+import scala.util.Failure
+import scala.Some
+import scala.util.Success
 
 case class BufferQueue(threshold: Int = 64 * 1024)(implicit executor: ExecutionContext) {
 
@@ -86,6 +88,14 @@ case class BufferQueue(threshold: Int = 64 * 1024)(implicit executor: ExecutionC
 
   def inputAvailable: Future[Unit] = {
     queueState.single.transformAndGet(_.markWaitingForInput()).waitingForInput.map(_.future).getOrElse(Future.successful())
+  }
+
+  def inputIteratee: Iteratee[Array[Byte], Unit] = Iteratee.foldM[Array[Byte], Unit]() {
+    (_, chunk) =>
+      enqueueChunk(chunk)
+  }.map {
+    _ =>
+      enqueueEOF()
   }
 
   def outputEnumerator = new Enumerator[Array[Byte]] {

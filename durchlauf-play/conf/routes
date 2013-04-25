@@ -9,5 +9,7 @@ GET     /                           controllers.Application.index
 GET     /assets/*file               controllers.Assets.at(path="/public", file)
 
 GET     /simple/digest              controllers.Simple.getDigest(size:Long ?= 100)
+POST    /simple/digest              controllers.Simple.postDigest
 
 GET     /streaming/digest           controllers.Streaming.getDigest(size:Long ?= 100)
+POST    /streaming/digest           controllers.Streaming.postDigest
