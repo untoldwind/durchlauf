@@ -25,16 +25,22 @@ case class StreamedSendAdapter[T](contentType: ContentType)(implicit executor: E
     setContentType(contentType)
 
     override def produceContent(encoder: ContentEncoder, ioctrl: IOControl) {
+      // the http client demands that we produce some content, so peek at the head of the buffer queue
       bufferQueue.headOption match {
         case Some(BufferQueue.Chunk(data, offset)) =>
+          // We have some data, so send as much as possible
           val written = encoder.write(ByteBuffer.wrap(data, offset, data.length - offset))
+          // ... and drop number of send bytes from the buffer queue
           bufferQueue.dropBytes(written)
         case Some(BufferQueue.EOF) =>
+          // We have reached the EOF, tell the http client so
           encoder.complete()
         case None =>
+          // The buffer is currently empty, so suspend the output for a moment
           ioctrl.suspendOutput()
           bufferQueue.inputAvailable.onSuccess {
             case _ =>
+              // And resume it once some data is available
               ioctrl.requestOutput()
           }
       }

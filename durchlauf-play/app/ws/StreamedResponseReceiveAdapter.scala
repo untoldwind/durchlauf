@@ -21,6 +21,9 @@ import scala.util.{Failure, Success}
 case class StreamedResponseReceiveAdapter()(implicit executor: ExecutionContext) extends ReceiveAdapter[StreamedResponse] {
   private val bufferQueue = BufferQueue()
 
+  /**
+   * We hand up a promise of an http response.
+   */
   val resultPromise = Promise[StreamedResponse]()
 
   override def resultFuture = resultPromise.future
@@ -43,6 +46,7 @@ case class StreamedResponseReceiveAdapter()(implicit executor: ExecutionContext)
     private val buffer = ByteBuffer.allocate(8 * 1024)
 
     override def onResponseReceived(response: HttpResponse) {
+      // At this point we can keep our promise, just have to convert the http header to a more convenient structure
       val headers = response.getAllHeaders.map(_.getName).toSet.map {
         name: String =>
           name -> response.getHeaders(name).map(_.getValue).toSeq
@@ -60,6 +64,7 @@ case class StreamedResponseReceiveAdapter()(implicit executor: ExecutionContext)
     }
 
     override def onEntityEnclosed(entity: HttpEntity, contentType: ContentType) {
+      // Not need here
     }
 
     override def onContentReceived(decoder: ContentDecoder, ioctrl: IOControl) {
@@ -71,11 +76,14 @@ case class StreamedResponseReceiveAdapter()(implicit executor: ExecutionContext)
       val bodyPart = new Array[Byte](buffer.remaining())
       buffer.get(bodyPart)
       buffer.clear()
+      // Enqueue the received chunk in the buffer queue
       val bufferAvailable = bufferQueue.enqueueChunk(bodyPart)
       if (!bufferAvailable.isCompleted) {
+        // If we have reached the threshold and have to waif for free space, we suspend the input for a moment
         ioctrl.suspendInput()
         bufferAvailable.onSuccess {
           case _ =>
+            // And resume it once buffer is free again
             ioctrl.requestInput()
         }
       }
