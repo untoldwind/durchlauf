@@ -14,9 +14,19 @@ import org.apache.http.entity.{ContentType, ByteArrayEntity}
 import play.api.libs.iteratee.{Done, Iteratee}
 import scala.Some
 
+/**
+ * Alternative "WS" implementation using the apacha async http client.
+ */
 object AsyncWS {
+  /**
+   * Internal holder of the underlying implementation.
+   */
   private val httpClientHolder = Ref(Option.empty[HttpAsyncClient])
 
+  /**
+   * Obtain the underlying implementation.
+   * If necessary create one, but ensure that only one is actively used.
+   */
   def httpClient: HttpAsyncClient = {
     httpClientHolder.single.get.getOrElse {
       var newHttpClient = new DefaultHttpAsyncClient(connectionManager)
@@ -30,14 +40,36 @@ object AsyncWS {
     }
   }
 
+  /**
+   * Perform a HTTP GET without streaming.
+   *
+   * @param url the URL to be invoked
+   * @return the http response (containing the entire body.
+   */
   def get(url: String): Future[CompletedResponse] = {
     execute(new HttpGet(url), CompletedResponseReceiveAdapter())
   }
 
+  /**
+   * Perform a HTTP GET with streamed response.
+   *
+   * @param url the URL to be invoked
+   * @param executor implicit execution context
+   * @return the http response supporting streaming of its content.
+   */
   def getStream(url: String)(implicit executor: ExecutionContext): Future[StreamedResponse] = {
     execute(new HttpGet(url), StreamedResponseReceiveAdapter())
   }
 
+  /**
+   * Perform a HTTP POST without streaming.
+   *
+   * @param url the URL to be invoked
+   * @param mimeType the mime type of the content to be posted
+   * @param charset the optional charset of the content to be posted
+   * @param data the data to be posted
+   * @return the http response (containing the entire body.
+   */
   def post(url: String, mimeType: String, charset: Option[Charset], data: Array[Byte]): Future[CompletedResponse] = {
     val method = new HttpPost(url)
     val contentType = charset.map(ContentType.create(mimeType, _)).getOrElse(ContentType.create(mimeType))
@@ -45,6 +77,15 @@ object AsyncWS {
     execute(method, CompletedResponseReceiveAdapter())
   }
 
+  /**
+   * Perform a HTTP POST with streamed response.
+   *
+   * @param url the URL to be invoked
+   * @param mimeType the mime type of the content to be posted
+   * @param charset the optional charset of the content to be posted
+   * @param data the data to be posted
+   * @return the http response (containing the entire body.
+   */
   def postStreamDown(url: String, mimeType: String, charset: Option[Charset], data: Array[Byte])(implicit executor: ExecutionContext): Future[StreamedResponse] = {
     val method = new HttpPost(url)
     val contentType = charset.map(ContentType.create(mimeType, _)).getOrElse(ContentType.create(mimeType))
@@ -52,6 +93,15 @@ object AsyncWS {
     execute(method, StreamedResponseReceiveAdapter())
   }
 
+  /**
+   * Perform a HTTP POST with streamed request.
+   *
+   * @param url the URL to be invoked
+   * @param mimeType the mime type of the content to be posted
+   * @param charset the optional charset of the content to be posted
+   * @param executor implicit execution context
+   * @return an iteratee accepting the content to be posted and eventually containing the http response.
+   */
   def postStreamUp(url: String, mimeType: String, charset: Option[Charset])(implicit executor: ExecutionContext): Iteratee[Array[Byte], CompletedResponse] = {
     val method = new HttpPost(url)
     val contentType = charset.map(ContentType.create(mimeType, _)).getOrElse(ContentType.create(mimeType))

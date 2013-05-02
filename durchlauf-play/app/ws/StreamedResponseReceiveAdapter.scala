@@ -15,14 +15,17 @@ import org.apache.http.entity.ContentType
 import scala.concurrent.stm.Ref
 import scala.util.{Failure, Success}
 
+/**
+ * Adapt a [[org.apache.http.nio.protocol.HttpAsyncResponseConsumer]] to a [[ws.StreamedResponse]].
+ */
 case class StreamedResponseReceiveAdapter()(implicit executor: ExecutionContext) extends ReceiveAdapter[StreamedResponse] {
   private val bufferQueue = BufferQueue()
 
   val resultPromise = Promise[StreamedResponse]()
 
-  def resultFuture = resultPromise.future
+  override def resultFuture = resultPromise.future
 
-  val futureCallback = new FutureCallback[StreamedResponse] {
+  override val futureCallback = new FutureCallback[StreamedResponse] {
     def completed(result: StreamedResponse) {
     }
 
@@ -35,7 +38,7 @@ case class StreamedResponseReceiveAdapter()(implicit executor: ExecutionContext)
     }
   }
 
-  val responseConsumer = new AbstractAsyncResponseConsumer[StreamedResponse] {
+  override val responseConsumer = new AbstractAsyncResponseConsumer[StreamedResponse] {
 
     private val buffer = ByteBuffer.allocate(8 * 1024)
 

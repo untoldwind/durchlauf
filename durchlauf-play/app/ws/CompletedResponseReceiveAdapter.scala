@@ -12,6 +12,9 @@ import org.apache.http.concurrent.FutureCallback
 import java.io.ByteArrayOutputStream
 import org.apache.http.entity.ContentType
 
+/**
+ * Adapt a [[org.apache.http.nio.protocol.HttpAsyncResponseConsumer]] to a [[ws.CompletedResponse]].
+ */
 case class CompletedResponseReceiveAdapter() extends ReceiveAdapter[CompletedResponse] {
 
   private val body = new ByteArrayOutputStream()
@@ -20,9 +23,9 @@ case class CompletedResponseReceiveAdapter() extends ReceiveAdapter[CompletedRes
 
   private val resultPromise = Promise[CompletedResponse]()
 
-  def resultFuture = resultPromise.future
+  override def resultFuture = resultPromise.future
 
-  val futureCallback = new FutureCallback[CompletedResponse] {
+  override val futureCallback = new FutureCallback[CompletedResponse] {
     def completed(result: CompletedResponse) {
       resultPromise.success(result)
     }
@@ -36,7 +39,7 @@ case class CompletedResponseReceiveAdapter() extends ReceiveAdapter[CompletedRes
     }
   }
 
-  val responseConsumer = new AsyncByteConsumer[CompletedResponse] {
+  override val responseConsumer = new AsyncByteConsumer[CompletedResponse] {
 
     override def onByteReceived(buffer: ByteBuffer, ioctrl: IOControl) {
       val bodyPart = new Array[Byte](buffer.remaining())

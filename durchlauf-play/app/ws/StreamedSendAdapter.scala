@@ -12,6 +12,9 @@ import java.nio.ByteBuffer
 import scala.annotation.tailrec
 import org.apache.http.concurrent.FutureCallback
 
+/**
+ * Adapt an [[play.api.libs.iteratee.Iteratee]] to a [[org.apache.http.nio.entity.HttpAsyncContentProducer]].
+ */
 case class StreamedSendAdapter[T](contentType: ContentType)(implicit executor: ExecutionContext) {
 
   val bufferQueue = BufferQueue()

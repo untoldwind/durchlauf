@@ -7,6 +7,9 @@ import play.api.libs.iteratee.{Iteratee, Done}
 import play.api.libs.concurrent.Execution.Implicits._
 import java.nio.charset.Charset
 
+/**
+ * True NIO streaming solution.
+ */
 object Streaming extends Controller {
   val baseUrl = "http://localhost:10390"
 

@@ -5,6 +5,9 @@ import ws.AsyncWS
 import play.api.libs.concurrent.Execution.Implicits._
 import java.nio.charset.Charset
 
+/**
+ * Simple solution using the non-streaming part of the async http adapter.
+ */
 object Simple extends Controller {
 
   val baseUrl = "http://localhost:10390"
