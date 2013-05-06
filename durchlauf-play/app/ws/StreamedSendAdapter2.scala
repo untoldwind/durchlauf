@@ -6,39 +6,32 @@ import org.apache.http.nio.entity.HttpAsyncContentProducer
 import org.apache.http.nio.{IOControl, ContentEncoder}
 import java.io.OutputStream
 import java.nio.ByteBuffer
+import play.api.libs.iteratee.Input
 
-/**
- * Adapt an [[play.api.libs.iteratee.Iteratee]] to a [[org.apache.http.nio.entity.HttpAsyncContentProducer]].
- */
-case class StreamedSendAdapter[T](contentType: ContentType)(implicit executor: ExecutionContext) {
+case class StreamedSendAdapter2(contentType: ContentType)(implicit executor: ExecutionContext) {
 
-  val bufferQueue = BufferQueue()
+  val transferBuffer = TransferBuffer()
 
-  val iteratee = bufferQueue.inputIteratee
+  val iteratee = transferBuffer.inputIteratee
 
   val httpEntity = new AbstractHttpEntity with HttpAsyncContentProducer {
     setContentType(contentType)
 
     override def produceContent(encoder: ContentEncoder, ioctrl: IOControl) {
       // the http client demands that we produce some content, so peek at the head of the buffer queue
-      bufferQueue.headOption match {
-        case Some(BufferQueue.Chunk(data, offset)) =>
+      transferBuffer.processNextChunk({
+        case Input.El(data) =>
           // We have some data, so send as much as possible
-          val written = encoder.write(ByteBuffer.wrap(data, offset, data.length - offset))
-          // ... and drop number of send bytes from the buffer queue
-          bufferQueue.dropBytes(written)
-        case Some(BufferQueue.EOF) =>
+          encoder.write(ByteBuffer.wrap(data, 0, data.length))
+        case Input.EOF =>
           // We have reached the EOF, tell the http client so
           encoder.complete()
-        case None =>
-          // The buffer is currently empty, so suspend the output for a moment
-          ioctrl.suspendOutput()
-          bufferQueue.inputAvailable.onSuccess {
-            case _ =>
-              // And resume it once some data is available
-              ioctrl.requestOutput()
-          }
-      }
+          0
+      }, {
+        ioctrl.suspendOutput()
+      }, {
+        ioctrl.requestOutput()
+      })
     }
 
     override def getContentLength = -1

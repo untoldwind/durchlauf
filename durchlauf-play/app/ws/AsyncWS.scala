@@ -58,7 +58,7 @@ object AsyncWS {
    * @return the http response supporting streaming of its content.
    */
   def getStream(url: String)(implicit executor: ExecutionContext): Future[StreamedResponse] = {
-    execute(new HttpGet(url), StreamedResponseReceiveAdapter())
+    execute(new HttpGet(url), StreamedResponseReceiveAdapter2())
   }
 
   /**
@@ -90,7 +90,7 @@ object AsyncWS {
     val method = new HttpPost(url)
     val contentType = charset.map(ContentType.create(mimeType, _)).getOrElse(ContentType.create(mimeType))
     method.setEntity(new ByteArrayEntity(data, contentType))
-    execute(method, StreamedResponseReceiveAdapter())
+    execute(method, StreamedResponseReceiveAdapter2())
   }
 
   /**
@@ -106,7 +106,7 @@ object AsyncWS {
     val method = new HttpPost(url)
     val contentType = charset.map(ContentType.create(mimeType, _)).getOrElse(ContentType.create(mimeType))
     val receiveAdapter = CompletedResponseReceiveAdapter()
-    val sendAdapter = StreamedSendAdapter(contentType)
+    val sendAdapter = StreamedSendAdapter2(contentType)
 
     method.setEntity(sendAdapter.httpEntity)
 
@@ -129,7 +129,7 @@ object AsyncWS {
     val method = new HttpPost(url)
     val contentType = charset.map(ContentType.create(mimeType, _)).getOrElse(ContentType.create(mimeType))
     method.setEntity(new ByteArrayEntity(data, contentType))
-    execute(method, StreamedResponseReceiveAdapter())
+    execute(method, StreamedResponseReceiveAdapter2())
   }
 
   def delete(url: String): Future[CompletedResponse] = {
